@@ -1,0 +1,204 @@
+2007 Wildstang Functionality Guide
+
+=-=-=-=-=-=-=-=-=-=-=-=-
+Driver
+=-=-=-=-=-=-=-=-=-=-=-=-
+* Crab Drive
+---- Left stick X controls crab angle for front and back
+---- Right stick Y controls throttle
+
+* Tank Drive
+---- Left stick X - not used...must be centered
+---- Right stick X/Y - Single stick differential drive
+------ If Y is near the extremes, the X axis will engage car steering.
+       In this mode, the X axis will cause the leading crab wheels to
+       turn.  The amount of turn is based on the X axis as well as the
+       wheel speed (based on encoders).  The faster the robot is moving,
+       the smaller the effect car steering has.
+       -- Note that the direction that the stick is pushed on the
+       X axis corresponds to the direction that the robot will rotate.
+       When driving forward, this is intuitive: car steering right will
+       cause a clockwise rotation.  However, when driving backwards, 
+       this becomes non-intuitive because car steering right will still
+       cause a clockwise rotation of the robot (as opposed to the intuitive
+       counter-clockwise rotation).  This needed to be done to avoid
+       discontinuities between car steering and differential steering.
+---- When crabbed, differential steering is not enabled
+
+* Anti-Turbo
+---- R2 provides momentary control of anti-turbo.  When not pressed, the maximum
+     speed that the robot is allowed to drive at is scaled down (currently 1/2).
+     When the button is pressed, the maximum speed is allowed.
+
+* Landing Gear
+---- L2 provides momentary control of the landing gear (pressed == extended)
+---- When the landing gear is down, the maximum speed that the robot is allowed
+     to run at is scaled down to provide more control when turning.
+     (Currently 3/4)
+---- When the landing gear is down, car steering is disabled
+
+* Super-Crab
+---- Normal crab only allows the crab modules to rotate 90 degrees in either
+     direction.  Super-Crab allows for additional rotation (currently 30 degrees)
+     when engaged
+---- To engage Super-Crab, the crab stick should be positioned at the extreme
+     X position (i.e. crabbing 90 degrees).  Once there, the stick can be pulled
+     back to allow additional rotation.
+
+* Manual crab override
+---- There is a toggle switch on the OI that allows the driver to override the
+     crab feedback 
+     !!! This should only be used in emergencies if the feedback fails to avoid
+     !!! damaging to the robot.
+---- Once in manual override, the left drive stick controls the crab motors.
+     When the stick is pushed forward, the front module is controlled by the
+     left/right movement of the stick.  The motor will run at a speed
+     proportional to the X position of the stick.  Similarly, the back module
+     is controlled when the stick is pulled back.
+
+* Theta correction
+---- Theta correction uses the onboard gyro (read via the custom circuit) to
+     try to counteract any undesirable changes in orientation.
+---- There is a toggle switch on the OI panel that will enable/disable theta
+     correction (If there is no onboard gyro or CC, the swith should be set to
+     disable)
+---- When enabled, theta correction works automatically as follows:
+     -- When the robot is commanded to drive straight (small deadzone on the X
+        axis), the current orientation is latched.  If the gyro reports skew,
+        the leading crab modules will counteract the change.  If at any time the
+        X axis of the drive stick moves outside the deadzone, theta correction
+        will not take effect.
+     -- Theta correction works when crabbed at any angle
+
+* Dynamic braking
+---- This feature will allow the robot to set the drive speed controllers to
+     brake mode while driving at slow speeds based on wheel encoder counts.
+     This will provide additional resistance within the drivetrain when the
+     driver's intention is to not move.
+
+=-=-=-=-=-=-=-=-=-=-=-=-
+Manipulator
+=-=-=-=-=-=-=-=-=-=-=-=-
+* Arm Control
+---- Right Stick Y - Shoulder control.  Pulling back will raise the shoulder
+     from the home position.  Speed is proportional to the Y axis
+---- Left Stick Y - Elbow control.  Pushing forward will open the elbow from
+     the home position.  Speed is proportional to the Y axis
+---- D-Pad Left/Right - Rotate control.  Speed is always set to full, however,
+     there is some acceleration in place to help with finer control.
+---- X button - Telescope - Software sticky control of the telescopre that acts
+     on the press of the button and toggles state (in/out) with each press.
+     Several safety measures are in place with the telescope.
+     -- If the button is pressed while disabled, the transition is ignored
+     -- If the telescope is out, and the robot is disabled, the state will
+        be set to in.
+     Both of these measures prevent the telescope from extending unexpectedly
+     when the robot is enabled.
+---- Gripper control
+     -- L2 button - Gripper Open - When pressed, the state of the grippers is
+        set to open.
+     -- R2 button - Gripper Close - When pressed, the state of the grippers is
+        set to closed
+     -- Similar safety measures exist on the grippers to protect against 
+        unexpected opening when the robot is enabled.
+* Automatic control
+---- Automated control is based on a final end position of the arm.  The arm
+     will move the necessary joints based on pot feedback and constraints to
+     get to the desired position.  Once at the position, the feedback loops
+     will try to maintain that position
+---- Currently, the following positions are programmed:
+     -- Square - Pick up from the floor
+     -- Triangle - Home position
+     -- Circle - Pick up from human player
+     -- L1-Square - Score Low (not needed anymore)
+     -- L1-Triangle - Score Middle
+     -- L1-Circle - Score High
+     -- Proposed change:
+        -- Circle - Pick up from human player left
+        -- L1-Square - Score Middle
+        -- L1-Triangle - Score High
+        -- L1-Circle - Pick up from human player right
+---- As soon as a manual movement of any arm actuator is made, the automated
+     loop is exited.
+---- It should be noted that the automated positions will get close to the
+     desired position, but will still require manual movement to complete the
+     action (i.e. moving the elbow to score, opening grippers, etc)
+
+* Constraints
+---- There are software limits that may limit the movement of arm actuators
+     based on the arm pots.
+---- Currently, there are only constraints in place at the enpoints of each
+     joint.
+
+* Arm feedback override
+---- There is a toggle switch on the OI that enables/disables arm feedback.
+     When this is set to disable, the robot will not look at any of the pot
+     feedback when moving the arm.  Manual controls will remain the same,
+     however, no constraints will be applied.  None of the automatic positions
+     will function in this state.
+
+=-=-=-=-=-=-=-=-=-=-=-=-
+Common
+=-=-=-=-=-=-=-=-=-=-=-=-
+* Ramp release
+---- There is a toggle switch on the OI that will release the ramp.
+---- Since this is a one-shot deployment, the following safeties are in place:
+     -- If the switch is on when enabled, do not deploy the ramp until the
+        switch is set first set to off
+     -- Deploy the ramp only if the switch has been set for more than 10
+        software loops (~0.2 seconds).
+
+* Tower release
+---- There is a toggle switch on the OI that will release the tower.
+---- Since this is a one-shot deployment, the following safeties are in place:
+     -- If the switch is on when enabled, do not deploy the ramp until the
+        switch is set first set to off
+     -- Deploy the ramp only if the switch has been set for more than 10
+        software loops (~0.2 seconds).
+
+* Joystick calibration
+---- When the OI debug switch is put in joystick mode, the output of the
+     joysticks can be read on the OI 7-seg display when the OI is in user mode
+     (press select until the first character is a 'u')  This is useful for
+     debugging joystick input
+---- To activate for an analog stick, move the stick all the way to either the
+     top or left depending on which axis is being looked at.
+
+* Pot calibration
+---- When the OI debug switch is put in pot mode, there are two modes of
+     operation
+     -- Debug - Displays the values of various pots on the OI 7-seg display
+     -- Calibrate - Allows the arm to be calibrated and the calibration values
+        to be stored in EEPROM for further use.
+---- Debugging
+     -- Arm pots - Move the stick that corresponds to the pot in question all
+        the way to the top if it is an analog stick, or D-Pad left if it is
+        controlled by the D-pad.  The value displayed at the OI is the current
+        value of the pot.  As the joint is moved, the value should change
+        accordingly
+     -- Crab pots - Moving the stick forward will debug the front crab pot
+        and moving it backwards will debug the back.
+---- Calibration
+     -- Crab pots
+        -- There are three calibration values associated with the crab pots:
+           left, center, right.
+        -- Position the crab module so that it is 90 degrees to the left,
+           right, or centered.  Press the calibration sequence on the drive
+           controller to calibrate that module in that position
+           -- Crab stick Y determines front/back module
+           -- Crab stick X determines left/center/right position
+           -- With the stick in position, press L1
+     -- Arm pots 
+        -- Each arm joint needs to be calibrated for the end of travel.
+           With the robot disabled, and the joint at the extreme, hold the
+           arm joystick associated with the joint in the direction that would
+           cause the joint to drive past the endpoint.  With the joystick held,
+           press the calibration button associated with the joint.
+           -- Square - Rotate
+           -- Triangle - Elbow
+           -- Circle - Shoulder
+        -- To calculate the middle point of all three joints, position the arm
+           so the shoulder is parallel to the ground, the elbow is perfectly
+           straight, and the rotation is not rotated.  Press the combination of
+           L2, R2, and X to calculate the midpoint for all
+

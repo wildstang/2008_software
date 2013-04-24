@@ -1,0 +1,608 @@
+#include <stdio.h>
+#include "ifi_frc.h"
+#include "ws_io.h"
+#include "ws_includes.h"
+#include "ws_autonomous.h"
+#include "ws_autoprog.h"
+#include "ws_pid.h"
+#include "ws_drive.h"
+#include "ws_lift.h"
+
+/* Auto Program 3
+ * Slapper
+ */
+UINT8 ap_prog3(UINT8 num_lines, UINT8 random_slap)
+{
+  static UINT8 prog_state = AP_SLPR_STATE_WAIT_FOR_BALL_POS;
+  static UINT16 timeout_thresh = TO_NONE;
+  static UINT16 timeout_loop = 0;
+  static UINT16 loop_count = 0;
+  UINT8 prog_ret = AUTO_PROGRAM_NOT_DONE;
+  UINT8 delay_loops = 0;
+
+  static UINT8 approach_brad = 0;
+  static UINT16 approach_dist = 0;
+  static UINT16 crab_brad = 0;
+  static UINT16 crab_dist = 0;
+  static UINT16 drive_through_ball_dist = 0;
+  static UINT16 drive_second_line_dist = 0;
+  static UINT16 drive_opp_home_dist = 0;
+  static UINT8  allow_slap = 1;
+
+  Oi_sw_theta_correct = 1;
+
+  switch(prog_state)
+  {
+    case AP_SLPR_STATE_WAIT_FOR_BALL_POS:
+      timeout_thresh = TO_NONE;
+      if(loop_count < 120)
+      {
+        if(g_ball_pos != BALL_POS_NONE)
+        {
+          loop_count = 0;
+          printf("CHOSE BALL %d ", g_ball_pos);
+          prog_state = AP_SLPR_STATE_INIT_FROM_BALL_POS;
+        }
+        else
+        {
+          switch(cc_data.data.encoder.ball_near_pos)
+          {
+            case CC_BALL_POS_UNKNOWN:
+              g_ball_pos = BALL_POS_NONE;
+              break;
+            case CC_BALL_POS_BLUE_RED_EMPTY:
+              if(g_auto_color == COLOR_RED)
+              {
+                g_ball_pos = BALL_POS_CENTER;
+              }
+              else
+              {
+                g_ball_pos = BALL_POS_LEFT;
+              }
+              break;
+            case CC_BALL_POS_BLUE_EMPTY_RED:
+              if(g_auto_color == COLOR_RED)
+              {
+                g_ball_pos = BALL_POS_RIGHT;
+              }
+              else
+              {
+                g_ball_pos = BALL_POS_LEFT;
+              }
+              break;
+            case CC_BALL_POS_EMPTY_BLUE_RED:
+              if(g_auto_color == COLOR_RED)
+              {
+                g_ball_pos = BALL_POS_RIGHT;
+              }
+              else
+              {
+                g_ball_pos = BALL_POS_CENTER;
+              }
+              break;
+            case CC_BALL_POS_RED_BLUE_EMPTY:
+              if(g_auto_color == COLOR_RED)
+              {
+                g_ball_pos = BALL_POS_LEFT;
+              }
+              else
+              {
+                g_ball_pos = BALL_POS_CENTER;
+              }
+              break;
+            case CC_BALL_POS_RED_EMPTY_BLUE:
+              if(g_auto_color == COLOR_RED)
+              {
+                g_ball_pos = BALL_POS_LEFT;
+              }
+              else
+              {
+                g_ball_pos = BALL_POS_RIGHT;
+              }
+              break;
+            case CC_BALL_POS_EMPTY_RED_BLUE:
+              if(g_auto_color == COLOR_RED)
+              {
+                g_ball_pos = BALL_POS_CENTER;
+              }
+              else
+              {
+                g_ball_pos = BALL_POS_RIGHT;
+              }
+              break;
+            case CC_BALL_POS_LEFT:
+              g_ball_pos = BALL_POS_LEFT;
+              break;
+            case CC_BALL_POS_CENTER:
+              g_ball_pos = BALL_POS_CENTER;
+              break;
+            case CC_BALL_POS_RIGHT:
+              g_ball_pos = BALL_POS_RIGHT;
+              break;
+            default:
+              g_ball_pos = BALL_POS_NONE;
+              break;
+          }
+          prog_state = AP_SLPR_STATE_WAIT_FOR_BALL_POS;
+        }
+        loop_count++;
+      }
+      else
+      {
+        loop_count = 0;
+        //prog_state = AP_SLPR_STATE_BALL_NOT_FOUND;
+        /* Drive down the center but don't slap */
+        g_ball_pos = BALL_POS_CENTER;
+        allow_slap = 0;
+        prog_state = AP_SLPR_STATE_WAIT_FOR_BALL_POS;
+        printf("TIMED OUT %d ", g_ball_pos);
+      }
+
+
+      break;
+    case AP_SLPR_STATE_INIT_FROM_BALL_POS:
+      timeout_thresh = TO_NONE;
+      printf("AP_SLPR_STATE_INIT_FROM_BALL_POS %d %d ", g_start_pos, g_ball_pos);
+      Oi_slapper = 255;
+      if(g_start_pos == START_POS_CENTER)
+      {
+        if(g_ball_pos == BALL_POS_CENTER)
+        {
+          approach_brad = 0;
+          approach_dist = 1600;
+          crab_dist = 0;
+          crab_brad = 0;
+          drive_through_ball_dist = 1200;
+          drive_second_line_dist = 700;
+          if(num_lines > 2)
+          {
+            drive_opp_home_dist = 1000;
+          }
+          else
+          {
+            drive_opp_home_dist = 100;
+          }
+        }
+        else if(g_ball_pos == BALL_POS_LEFT)
+        {
+          //approach_brad = 7;
+          approach_brad = 0;
+          approach_dist = 1600;
+          crab_dist = 120;
+          crab_brad = 63;
+          drive_through_ball_dist = 1000;
+          drive_second_line_dist = 700;
+
+          if(num_lines > 2)
+          {
+            drive_opp_home_dist = 1000;
+          }
+          else
+          {
+            drive_opp_home_dist = 100;
+          }
+        }
+        else
+        {
+          approach_brad = 0;
+          approach_dist = 1600;
+          crab_dist = 75;
+          crab_brad = 191;
+          drive_through_ball_dist = 1000;
+          drive_second_line_dist = 950;
+
+          if(num_lines > 2)
+          {
+            drive_opp_home_dist = 1000;
+          }
+          else
+          {
+            drive_opp_home_dist = 100;
+          }
+        }
+      }
+      else if(g_start_pos == START_POS_LEFT)
+      {
+        if(g_ball_pos == BALL_POS_CENTER)
+        {
+          approach_brad = 247;
+          approach_dist = 1050;
+          crab_dist = 1050;
+          drive_through_ball_dist = 700;
+          drive_second_line_dist = 0;
+
+          if(num_lines > 2)
+          {
+            drive_opp_home_dist = 1000;
+          }
+          else
+          {
+            drive_opp_home_dist = 100;
+          }
+        }
+        else if(g_ball_pos == BALL_POS_LEFT)
+        {
+          approach_brad = 0;
+          approach_dist = 700;
+          crab_dist = 1050;
+          drive_through_ball_dist = 700;
+          drive_second_line_dist = 0;
+
+          if(num_lines > 2)
+          {
+            drive_opp_home_dist = 1000;
+          }
+          else
+          {
+            drive_opp_home_dist = 100;
+          }
+        }
+        else
+        {
+          approach_brad = 243;
+          approach_dist = 1250;
+          crab_dist = 1050;
+          drive_through_ball_dist = 700;
+          drive_second_line_dist = 0;
+
+          if(num_lines > 2)
+          {
+            drive_opp_home_dist = 1000;
+          }
+          else
+          {
+            drive_opp_home_dist = 100;
+          }
+        }
+      }
+      else
+      {
+        /* NEED TO DO ALL OF THE RIGHT POSITIONS */
+        if(g_ball_pos == BALL_POS_CENTER)
+        {
+          approach_brad = 0;
+          approach_dist = 0;
+          crab_dist = 1050;
+          drive_through_ball_dist = 0;
+          drive_second_line_dist = 0;
+
+          if(num_lines > 2)
+          {
+            drive_opp_home_dist = 1000;
+          }
+          else
+          {
+            drive_opp_home_dist = 100;
+          }
+        }
+        else if(g_ball_pos == BALL_POS_LEFT)
+        {
+          approach_brad = 0;
+          approach_dist = 0;
+          crab_dist = 1050;
+          drive_through_ball_dist = 0;
+          drive_second_line_dist = 0;
+
+          if(num_lines > 2)
+          {
+            drive_opp_home_dist = 1000;
+          }
+          else
+          {
+            drive_opp_home_dist = 100;
+          }
+        }
+        else
+        {
+          approach_brad = 0;
+          approach_dist = 0;
+          crab_dist = 1050;
+          drive_through_ball_dist = 0;
+          drive_second_line_dist = 0;
+
+          if(num_lines > 2)
+          {
+            drive_opp_home_dist = 1000;
+          }
+          else
+          {
+            drive_opp_home_dist = 100;
+          }
+        }
+      }
+
+      prog_state = AP_SLPR_STATE_DELAY;
+
+      break;
+    case AP_SLPR_STATE_DELAY:
+      timeout_thresh = TO_NONE;
+      Oi_slapper = 255;
+
+      if(g_auto_delay == DELAY_1)
+      {
+        delay_loops = 40;
+      }
+      else if(g_auto_delay == DELAY_2)
+      {
+        delay_loops = 80;
+      }
+      else
+      {
+        delay_loops = 0;
+      }
+
+      /* UNFOLD DURING DELAY!!! */
+      //Oi_sw_accum_unfold = 1;
+      printf("AP_SLPR_STATE_DELAY %d loops <%d> ", delay_loops, loop_count);
+
+      if(loop_count >= delay_loops)
+      {
+        loop_count = 0;
+        if(approach_brad != 0)
+        {
+          prog_state = AP_SLPR_STATE_POINT_WHEELS_APPROACH;
+        }
+        else
+        {
+          prog_state = AP_SLPR_STATE_DRIVE_TO_APPROACH;
+        }
+      }
+      else
+      {
+        loop_count++;
+      }
+
+      if((g_start_pos ==  START_POS_LEFT) ||
+         (g_start_pos == START_POS_RIGHT ))
+      {
+        prog_state = AP_SLPR_STATE_DONE;
+      }
+      break;
+
+    case AP_SLPR_STATE_POINT_WHEELS_APPROACH:
+      timeout_thresh = TO_NONE;
+      printf("AP_SLPR_STATE_POINT_WHEELS_APPROACH ");
+
+      Oi_slapper = 255;
+
+      if(loop_count < 10)
+      {
+        convert_brads_to_joystick(approach_brad, &Oi_crab_x, &Oi_crab_y);
+        loop_count++;
+      }
+      else
+      {
+        /* Don't need to pause, wheels are already forward */
+        prog_state = AP_SLPR_STATE_DRIVE_TO_APPROACH;
+        loop_count = 0;
+        timeout_loop = 0;
+      }
+
+      break;
+
+    case AP_SLPR_STATE_DRIVE_TO_APPROACH:
+      timeout_thresh = TO_NONE;
+
+      if(allow_slap == 1)
+      {
+        Oi_slapper = 255;
+      }
+
+      convert_brads_to_joystick(approach_brad, &Oi_crab_x, &Oi_crab_y);
+      printf("AP_SLPR_STATE_DRIVE_TO_APPROACH ");
+      if(drive_by_ticks(127, 127 + 40, approach_dist) == AUTON_DRIVE_DONE)
+      {
+        loop_count = 0;
+        if(crab_brad != 0)
+        {
+          prog_state = AP_SLPR_STATE_DELAY_TO_CRAB;
+        }
+        else
+        {
+          prog_state = AP_SLPR_STATE_DRIVE_THROUGH_BALL;
+        }
+        timeout_loop = 0;
+      }
+
+      break;
+    case AP_SLPR_STATE_DELAY_TO_CRAB:
+      timeout_thresh = TO_NONE;
+      printf("AP_SLPR_STATE_DELAY_TO_CRAB ");
+
+      if(allow_slap == 1)
+      {
+        Oi_slapper = 255;
+      }
+
+      convert_brads_to_joystick(crab_brad, &Oi_crab_x, &Oi_crab_y);
+      loop_count++;
+      if(loop_count > 30)
+      {
+        prog_state = AP_SLPR_STATE_CRAB_AT_OVERPASS;
+      }
+      break;
+    case AP_SLPR_STATE_CRAB_AT_OVERPASS:
+      timeout_thresh = TO_NONE;
+      printf("AP_SLPR_STATE_CRAB_AT_OVERPASS ");
+
+      if(allow_slap == 1)
+      {
+        Oi_slapper = 255;
+      }
+
+      loop_count++;
+      convert_brads_to_joystick(crab_brad, &Oi_crab_x, &Oi_crab_y);
+      if(drive_by_ticks(127, 127 + 30, crab_dist) == AUTON_DRIVE_DONE)
+      {
+        loop_count = 0;
+        prog_state = AP_SLPR_STATE_DELAY_TO_POINT_FWD;
+        timeout_loop = 0;
+      }
+      break;
+    case AP_SLPR_STATE_DELAY_TO_POINT_FWD:
+      timeout_thresh = TO_NONE;
+      printf("AP_SLPR_STATE_DELAY_TO_POINT_FWD ");
+
+      if(allow_slap == 1)
+      {
+        Oi_slapper = 255;
+      }
+
+      convert_brads_to_joystick(0, &Oi_crab_x, &Oi_crab_y);
+      loop_count++;
+      if(loop_count > 30)
+      {
+        prog_state = AP_SLPR_STATE_DRIVE_THROUGH_BALL;
+      }
+
+      break;
+    case AP_SLPR_STATE_DRIVE_THROUGH_BALL:
+      timeout_thresh = TO_NONE;
+
+      if(allow_slap == 1)
+      {
+        Oi_slapper = 255;
+      }
+
+      printf("AP_SLPR_STATE_DRIVE_THROUGH_BALL ");
+      if(drive_by_ticks(127, 127 + 75, drive_through_ball_dist) == AUTON_DRIVE_DONE)
+      {
+        loop_count = 0;
+        prog_state = AP_SLPR_STATE_CORRECT_ORIENT_AFTER_BALL;
+        timeout_loop = 0;
+      }
+      break;
+
+    case AP_SLPR_STATE_CORRECT_ORIENT_AFTER_BALL:
+      timeout_thresh = TO_NONE;
+      prog_state = AP_SLPR_STATE_POINT_TO_SECOND_LINE;
+      break;
+
+    case AP_SLPR_STATE_POINT_TO_SECOND_LINE:
+      timeout_thresh = TO_NONE;
+      printf("AP_SLPR_STATE_POINT_TO_SECOND_LINE ");
+
+      loop_count++;
+      if(loop_count > 30)
+      {
+        convert_brads_to_joystick(63, &Oi_crab_x, &Oi_crab_y);
+      }
+      if(loop_count > 60)
+      {
+        prog_state = AP_SLPR_STATE_CROSS_SECOND_LINE;
+      }
+      break;
+
+    case AP_SLPR_STATE_CROSS_SECOND_LINE:
+      timeout_thresh = TO_NONE;
+      printf("AP_SLPR_STATE_POINT_CROSS_SECOND_LINE ");
+
+      convert_brads_to_joystick(63, &Oi_crab_x, &Oi_crab_y);
+      if(drive_by_ticks(127, 127 + 40, drive_second_line_dist) == AUTON_DRIVE_DONE)
+      {
+        loop_count = 0;
+        prog_state = AP_SLPR_STATE_POINT_TO_OPP_HOMESTREACH;
+        timeout_loop = 0;
+      }
+      break;
+
+    case AP_SLPR_STATE_POINT_TO_OPP_HOMESTREACH:
+      timeout_thresh = TO_NONE;
+      printf("AP_SLPR_STATE_POINT_TO_OPP_HOMESTREACH ");
+
+      if(random_slap == 1)
+      {
+        Oi_slapper = 255;
+      }
+
+      loop_count++;
+      convert_brads_to_joystick(127, &Oi_crab_x, &Oi_crab_y);
+      if(loop_count > 30)
+      {
+        prog_state = AP_SLPR_STATE_DRIVE_OPP_HOMESTREACH;
+      }
+      break;
+
+    case AP_SLPR_STATE_DRIVE_OPP_HOMESTREACH:
+      timeout_thresh = TO_NONE;
+
+      if(random_slap == 1)
+      {
+        Oi_slapper = 255;
+      }
+
+      printf("AP_SLPR_STATE_DRIVE_OPP_HOMESTREACH ");
+
+      convert_brads_to_joystick(127, &Oi_crab_x, &Oi_crab_y);
+      if(drive_by_ticks(127, 127 + 70, drive_opp_home_dist) == AUTON_DRIVE_DONE)
+      {
+        loop_count = 0;
+        prog_state = AP_SLPR_STATE_DONE;
+        timeout_loop = 0;
+      }
+      break;
+    case AP_SLPR_STATE_BALL_NOT_FOUND:
+      timeout_thresh = TO_NONE;
+      printf("AP_SLPR_STATE_BALL_NOT_FOUND ");
+      convert_brads_to_joystick(0, &Oi_crab_x, &Oi_crab_y);
+      if(drive_by_ticks(127, 127 + 40, 1000) == AUTON_DRIVE_DONE)
+      {
+        loop_count = 0;
+        prog_state = AP_SLPR_STATE_DRIVE_THROUGH_BALL;
+        timeout_loop = 0;
+        prog_state = AP_SLPR_STATE_DONE;
+      }
+
+      break;
+
+    case AP_SLPR_STATE_DONE:
+      timeout_thresh = TO_NONE;
+      printf("AP_SLPR_STATE_DONE ");
+      prog_state = AP_SLPR_STATE_DONE;
+      prog_ret = AUTO_PROGRAM_DONE;
+      break;
+
+    default:
+      timeout_thresh = TO_NONE;
+      prog_state = AP_SLPR_STATE_DONE;
+      break;
+  }
+
+  if(timeout_thresh != TO_NONE)
+  {
+    if(timeout_loop < timeout_thresh)
+    {
+      if(prog_ret == AUTO_PROGRAM_NOT_DONE)
+      {
+        timeout_loop++;
+      }
+    }
+    else
+    {
+      prog_state = AP_SLPR_STATE_DONE;
+    }
+  }
+
+  switch(g_ball_pos)
+  {
+    case BALL_POS_LEFT:
+      Pwm1_green = 1;
+      Pwm2_green = 0;
+      Relay1_green = 0;
+      break;
+    case BALL_POS_CENTER:
+      Pwm1_green = 0;
+      Pwm2_green = 1;
+      Relay1_green = 0;
+      break;
+    case BALL_POS_RIGHT:
+      Pwm1_green = 0;
+      Pwm2_green = 0;
+      Relay1_green = 1;
+      break;
+    default:
+      break;
+  }
+  return prog_ret;
+}
+
